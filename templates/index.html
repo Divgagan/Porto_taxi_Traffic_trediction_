@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SYS.TERMINAL // SMART ROUTE</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            /* Palette */
+            --bg-base: #020202;
+            --bg-grad: #080a0a;
+            --neon-green: #00ff9f;
+            --neon-cyan: #00eaff;
+            --neon-purple: #9d00ff;
+            --neon-red: #ff003c;
+            --neon-yellow: #fcee0a;
+            /* UI colors */
+            --panel-bg: rgba(10, 15, 20, 0.7);
+            --panel-border: rgba(0, 234, 255, 0.25);
+            --text-main: #e0f8ff;
+            --text-dim: #3c5b66;
+            /* Fonts */
+            --font-display: 'Orbitron', sans-serif;
+            --font-mono: 'Share Tech Mono', monospace;
+        }
+
+        /* --- Global Reset --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-cyan);
+            border-radius: 2px;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--bg-base), var(--bg-grad));
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            position: relative;
+        }
+
+        /* --- Effects Layers --- */
+        #matrix-canvas,
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        #matrix-canvas {
+            opacity: 0.12;
+        }
+
+        #particle-canvas {
+            opacity: 0.5;
+        }
+
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.3) 50%, rgba(0, 0, 0, 0.3));
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 9998;
+            opacity: 0.5;
+        }
+
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+            opacity: 0.05;
+            pointer-events: none;
+            z-index: 9999;
+            mix-blend-mode: overlay;
+        }
+
+        @keyframes global-flicker {
+            0% {
+                opacity: 1;
+            }
+
+            3% {
+                opacity: 0.9;
+            }
+
+            6% {
+                opacity: 1;
+            }
+
+            45% {
+                opacity: 1;
+            }
+
+            48% {
+                opacity: 0.85;
+            }
+
+            51% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .app-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            position: relative;
+            animation: global-flicker 12s infinite;
+        }
+
+        /* --- Glassmorphism Cyber Panels --- */
+        .cyber-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 0 15px rgba(0, 234, 255, 0.05), inset 0 0 20px rgba(0, 234, 255, 0.02);
+            position: relative;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            border-radius: 2px;
+        }
+
+        .cyber-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+            opacity: 0.6;
+        }
+
+        .cyber-panel:hover {
+            box-shadow: 0 0 25px rgba(0, 234, 255, 0.15), inset 0 0 40px rgba(0, 234, 255, 0.05);
+            border-color: var(--neon-cyan);
+            transform: translateY(-1px);
+        }
+
+        .cyber-panel.purple {
+            border-color: rgba(157, 0, 255, 0.4);
+        }
+
+        .cyber-panel.purple::before {
+            background: linear-gradient(90deg, transparent, var(--neon-purple), transparent);
+        }
+
+        .cyber-panel.purple:hover {
+            box-shadow: 0 0 25px rgba(157, 0, 255, 0.15);
+            border-color: var(--neon-purple);
+        }
+
+        /* --- Header & Glitch --- */
+        .header-section {
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .glitch-wrapper {
+            font-family: var(--font-display);
+            font-size: 2.8rem;
+            font-weight: 900;
+            color: #fff;
+            position: relative;
+            text-transform: uppercase;
+            text-shadow: 0 0 15px var(--neon-cyan);
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            cursor: default;
+            white-space: nowrap;
+        }
+
+        .glitch-wrapper::before,
+        .glitch-wrapper::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+
+        .glitch-wrapper::before {
+            left: 2px;
+            text-shadow: -2px 0 var(--neon-red);
+            clip: rect(24px, 550px, 90px, 0);
+            animation: glitch-anim-2 3.5s infinite linear alternate-reverse;
+        }
+
+        .glitch-wrapper::after {
+            left: -2px;
+            text-shadow: -2px 0 var(--neon-cyan);
+            clip: rect(85px, 550px, 140px, 0);
+            animation: glitch-anim 2.5s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim {
+            0% {
+                clip: rect(74px, 9999px, 83px, 0);
+            }
+
+            20% {
+                clip: rect(10px, 9999px, 82px, 0);
+            }
+
+            40% {
+                clip: rect(51px, 9999px, 73px, 0);
+            }
+
+            60% {
+                clip: rect(9px, 9999px, 60px, 0);
+            }
+
+            80% {
+                clip: rect(69px, 9999px, 95px, 0);
+            }
+
+            100% {
+                clip: rect(31px, 9999px, 15px, 0);
+            }
+        }
+
+        @keyframes glitch-anim-2 {
+            0% {
+                clip: rect(65px, 9999px, 100px, 0);
+            }
+
+            20% {
+                clip: rect(14px, 9999px, 51px, 0);
+            }
+
+            40% {
+                clip: rect(87px, 9999px, 4px, 0);
+            }
+
+            60% {
+                clip: rect(31px, 9999px, 83px, 0);
+            }
+
+            80% {
+                clip: rect(58px, 9999px, 20px, 0);
+            }
+
+            100% {
+                clip: rect(98px, 9999px, 43px, 0);
+            }
+        }
+
+        .sys-subtitle {
+            font-family: var(--font-display);
+            color: var(--neon-purple);
+            font-size: 0.95rem;
+            letter-spacing: 4px;
+            animation: text-flicker 4s infinite;
+            text-transform: uppercase;
+            text-shadow: 0 0 5px var(--neon-purple);
+        }
+
+        @keyframes text-flicker {
+
+            0%,
+            19.999%,
+            22%,
+            62.999%,
+            64%,
+            64.999%,
+            70%,
+            100% {
+                opacity: .99;
+                text-shadow: 0 0 10px var(--neon-purple);
+            }
+
+            20%,
+            21.999%,
+            63%,
+            63.999%,
+            65%,
+            69.999% {
+                opacity: 0.4;
+                text-shadow: none;
+            }
+        }
+
+        /* --- Audio Toggle --- */
+        #audio-toggle {
+            color: var(--neon-cyan);
+            font-size: 1.4rem;
+            cursor: pointer;
+            transition: 0.3s;
+            text-shadow: 0 0 10px var(--neon-cyan);
+            border: 1px solid var(--neon-cyan);
+            padding: 8px 12px;
+            border-radius: 4px;
+            background: rgba(0, 234, 255, 0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 45px;
+            height: 45px;
+        }
+
+        #audio-toggle:hover {
+            color: var(--neon-green);
+            border-color: var(--neon-green);
+            text-shadow: 0 0 15px var(--neon-green);
+            box-shadow: inset 0 0 10px rgba(0, 255, 159, 0.2);
+        }
+
+        #audio-toggle.muted {
+            color: var(--neon-red);
+            border-color: var(--neon-red);
+            text-shadow: 0 0 10px var(--neon-red);
+            background: transparent;
+        }
+
+        /* --- Sidebar & Inputs --- */
+        .sidebar {
+            width: 320px;
+            min-width: 320px;
+            padding: 30px 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-right: 1px solid var(--neon-purple);
+            box-shadow: 5px 0 30px rgba(157, 0, 255, 0.15);
+            background: linear-gradient(90deg, rgba(5, 5, 10, 0.85), rgba(10, 15, 20, 0.6));
+            z-index: 20;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .side-heading {
+            font-family: var(--font-display);
+            color: var(--neon-purple);
+            cursor: default;
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px dashed rgba(157, 0, 255, 0.5);
+            padding-bottom: 10px;
+            text-shadow: 0 0 8px var(--neon-purple);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+        }
+
+        .input-group label {
+            color: var(--neon-green);
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            text-shadow: 0 0 5px rgba(0, 255, 159, 0.5);
+        }
+
+        .input-group label::before {
+            content: '>';
+            color: var(--neon-cyan);
+            animation: blink 1s infinite;
+            text-shadow: 0 0 5px var(--neon-cyan);
+        }
+
+        @keyframes blink {
+
+            0%,
+            49% {
+                opacity: 1;
+            }
+
+            50%,
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .term-input {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(0, 234, 255, 0.3);
+            color: var(--neon-cyan);
+            font-family: var(--font-mono);
+            padding: 12px 15px;
+            font-size: 1rem;
+            outline: none;
+            transition: 0.3s;
+            border-radius: 2px;
+            border-left: 3px solid var(--neon-cyan);
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+            cursor: text;
+        }
+
+        .term-input:focus {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 15px rgba(0, 255, 159, 0.25), inset 0 0 10px rgba(0, 255, 159, 0.1);
+            border-left: 3px solid var(--neon-green);
+            background: rgba(0, 255, 159, 0.05);
+            color: var(--neon-green);
+        }
+
+        option {
+            background: #000;
+            color: var(--neon-cyan);
+        }
+
+        /* --- Cyber Button --- */
+        .cyber-btn {
+            background: rgba(0, 234, 255, 0.05);
+            color: var(--neon-cyan);
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            padding: 18px;
+            margin-top: 10px;
+            border: 1px solid var(--neon-cyan);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: 0.3s;
+            text-transform: uppercase;
+            box-shadow: 0 0 10px rgba(0, 234, 255, 0.2), inset 0 0 10px rgba(0, 234, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .cyber-btn i {
+            font-size: 1.2em;
+            text-shadow: 0 0 10px var(--neon-cyan);
+        }
+
+        .cyber-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 234, 255, 0.6), transparent);
+            transition: left 0.4s ease;
+        }
+
+        .cyber-btn:hover {
+            box-shadow: 0 0 25px var(--neon-cyan), inset 0 0 20px rgba(0, 234, 255, 0.4);
+            background: rgba(0, 234, 255, 0.15);
+            transform: scale(1.03);
+            color: #fff;
+            text-shadow: 0 0 10px #fff;
+        }
+
+        .cyber-btn:hover i {
+            text-shadow: 0 0 15px #fff;
+        }
+
+        .cyber-btn:hover::before {
+            left: 100%;
+        }
+
+        .cyber-btn:active {
+            background: var(--neon-cyan);
+            color: #000;
+            box-shadow: 0 0 40px var(--neon-cyan);
+        }
+
+        #loading {
+            display: none;
+            margin-top: 10px;
+            color: var(--neon-yellow);
+            text-align: center;
+            font-family: var(--font-display);
+            letter-spacing: 2px;
+            font-size: 0.9rem;
+            text-shadow: 0 0 5px var(--neon-yellow);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.4;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.4;
+            }
+        }
+
+        /* --- Terminal Logs Box --- */
+        .term-logs {
+            flex: 1;
+            border: 1px solid rgba(0, 234, 255, 0.2);
+            background: rgba(0, 0, 0, 0.85);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 1);
+            padding: 15px;
+            font-size: 0.85rem;
+            overflow-y: hidden;
+            position: relative;
+            border-left: 3px solid var(--neon-purple);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .log-header {
+            font-family: var(--font-display);
+            font-size: 0.8rem;
+            color: var(--neon-purple);
+            border-bottom: 1px dashed var(--neon-purple);
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        #term-log-content {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .log-line {
+            margin-bottom: 4px;
+            word-wrap: break-word;
+            line-height: 1.4;
+            display: flex;
+            gap: 8px;
+        }
+
+        .log-line::before {
+            content: 'sys@smrt~ %';
+            color: var(--text-dim);
+        }
+
+        .log-info {
+            color: var(--neon-cyan);
+        }
+
+        .log-success {
+            color: var(--neon-green);
+            text-shadow: 0 0 5px var(--neon-green);
+        }
+
+        .log-warn {
+            color: var(--neon-yellow);
+            text-shadow: 0 0 5px var(--neon-yellow);
+        }
+
+        .log-err {
+            color: var(--neon-red);
+            text-shadow: 0 0 5px var(--neon-red);
+        }
+
+        .log-cursor {
+            display: inline-block;
+            width: 6px;
+            height: 1em;
+            background: var(--neon-cyan);
+            animation: blink 1s infinite;
+            vertical-align: bottom;
+            margin-left: 5px;
+            box-shadow: 0 0 5px var(--neon-cyan);
+        }
+
+        /* --- Details & Summary (About Model) --- */
+        details {
+            border: 1px solid var(--neon-purple);
+            margin-top: 5px;
+            background: rgba(0, 0, 0, 0.6);
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+            transition: 0.3s;
+        }
+
+        details:hover {
+            box-shadow: 0 0 10px rgba(157, 0, 255, 0.2);
+        }
+
+        summary {
+            cursor: pointer;
+            padding: 12px;
+            color: var(--neon-purple);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-display);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: 0.3s;
+            background: rgba(157, 0, 255, 0.05);
+        }
+
+        summary:hover {
+            background: rgba(157, 0, 255, 0.15);
+            text-shadow: 0 0 8px var(--neon-purple);
+        }
+
+        details div {
+            padding: 15px;
+            border-top: 1px dashed var(--neon-purple);
+            font-size: 0.85rem;
+            color: var(--text-main);
+            background: rgba(0, 0, 0, 0.4);
+            line-height: 1.5;
+            letter-spacing: 0.5px;
+        }
+
+        details img {
+            width: 100%;
+            filter: hue-rotate(180deg) invert(1) sepia(1) hue-rotate(150deg) saturate(3) brightness(1.2);
+            mix-blend-mode: screen;
+            border: 1px solid var(--neon-cyan);
+            margin-top: 12px;
+            opacity: 0.9;
+            box-shadow: 0 0 15px rgba(0, 234, 255, 0.2);
+        }
+
+        /* --- Main Content Area --- */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            z-index: 20;
+            position: relative;
+        }
+
+        /* --- Status Bar --- */
+        .status-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 5px;
+            height: 100px;
+        }
+
+        .status-box {
+            padding: 15px 25px;
+            border: 1px solid var(--panel-border);
+            background: rgba(5, 5, 10, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            font-family: var(--font-display);
+            letter-spacing: 2px;
+            font-size: 1rem;
+            border-radius: 2px;
+            flex: 1.5;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+        }
+
+        .status-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px;
+        }
+
+        .s-online .status-indicator {
+            background: var(--neon-green);
+            box-shadow: 0 0 15px var(--neon-green);
+            animation: pulse-slow 2s infinite;
+        }
+
+        .s-online .status-text {
+            color: var(--neon-green);
+            text-shadow: 0 0 5px var(--neon-green);
+        }
+
+        .s-heavy .status-indicator {
+            background: var(--neon-red);
+            box-shadow: 0 0 15px var(--neon-red);
+            animation: pulse-fast 0.3s infinite;
+        }
+
+        .s-heavy .status-text {
+            color: var(--neon-red);
+            text-shadow: 0 0 8px var(--neon-red);
+        }
+
+        .s-proc .status-indicator {
+            background: var(--neon-yellow);
+            box-shadow: 0 0 15px var(--neon-yellow);
+            animation: pulse-med 1s infinite;
+        }
+
+        .s-proc .status-text {
+            color: var(--neon-yellow);
+            text-shadow: 0 0 5px var(--neon-yellow);
+        }
+
+        @keyframes pulse-slow {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.3);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse-med {
+
+            0%,
+            100% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse-fast {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.6;
+            }
+
+            50% {
+                transform: scale(1.4);
+                opacity: 1;
+            }
+        }
+
+        /* --- Data Cards --- */
+        .data-card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .data-header {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 5px;
+            font-family: var(--font-display);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .data-value {
+            font-family: var(--font-display);
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--neon-cyan);
+            text-shadow: 0 0 15px rgba(0, 234, 255, 0.4);
+        }
+
+        /* --- Middle Area --- */
+        .mid-grid {
+            display: flex;
+            gap: 20px;
+            flex: 2;
+            min-height: 380px;
+        }
+
+        /* Map Upgrade */
+        .map-wrapper {
+            flex: 1.5;
+            position: relative;
+            border: 1px solid var(--neon-purple);
+            box-shadow: 0 0 20px rgba(157, 0, 255, 0.2), inset 0 0 30px rgba(0, 0, 0, 1);
+            padding: 1px;
+            background: #000;
+        }
+
+        .map-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 1), inset 0 0 20px rgba(157, 0, 255, 0.3);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            filter: contrast(1.1) brightness(0.9);
+        }
+
+        .map-overlay-label {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 2000;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid var(--neon-cyan);
+            border-left: 3px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            font-family: var(--font-display);
+            padding: 8px 15px;
+            font-size: 0.7rem;
+            letter-spacing: 3px;
+            box-shadow: 0 0 10px rgba(0, 234, 255, 0.2);
+            animation: pulse-border 2s infinite;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-transform: uppercase;
+        }
+
+        .map-overlay-label i {
+            color: var(--neon-red);
+            animation: blink 1s infinite;
+            text-shadow: 0 0 5px var(--neon-red);
+        }
+
+        @keyframes pulse-border {
+
+            0%,
+            100% {
+                box-shadow: 0 0 5px rgba(0, 234, 255, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(0, 234, 255, 0.4);
+            }
+        }
+
+        /* Chart */
+        .chart-wrapper {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: stretch;
+            background: rgba(5, 5, 10, 0.8);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+
+        .section-header {
+            font-family: var(--font-display);
+            font-size: 0.9rem;
+            color: var(--neon-cyan);
+            border-bottom: 1px dashed var(--neon-cyan);
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 0 0 5px var(--neon-cyan);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #chart-container {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+        }
+
+        /* --- Bottom Table --- */
+        .table-wrapper {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: rgba(5, 5, 10, 0.8);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+            min-height: 250px;
+        }
+
+        #plan-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        #plan-table th {
+            background: rgba(0, 234, 255, 0.05);
+            color: var(--neon-cyan);
+            position: sticky;
+            top: -20px;
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--neon-cyan);
+            border-top: 1px solid var(--neon-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 5;
+            backdrop-filter: blur(5px);
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+        }
+
+        #plan-table td {
+            padding: 12px 15px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            letter-spacing: 1px;
+        }
+
+        #plan-table tr:hover {
+            background: rgba(0, 255, 159, 0.05);
+            cursor: crosshair;
+        }
+
+        #plan-table tr:hover td {
+            color: var(--neon-green);
+            text-shadow: 0 0 3px var(--neon-green);
+        }
+
+        .plan-row-high td {
+            color: rgba(255, 0, 60, 0.8);
+        }
+
+        .plan-row-high td:last-child {
+            color: var(--neon-red);
+            text-shadow: 0 0 10px var(--neon-red);
+            font-weight: bold;
+        }
+
+        .plan-row-medium td {
+            color: rgba(252, 238, 10, 0.8);
+        }
+
+        .plan-row-medium td:last-child {
+            color: var(--neon-yellow);
+            text-shadow: 0 0 10px var(--neon-yellow);
+            font-weight: bold;
+        }
+
+        .plan-row-low td {
+            color: rgba(0, 255, 159, 0.8);
+        }
+
+        .plan-row-low td:last-child {
+            color: var(--neon-green);
+            text-shadow: 0 0 10px var(--neon-green);
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Background Canvas Animations -->
+    <canvas id="matrix-canvas"></canvas>
+    <canvas id="particle-canvas"></canvas>
+    <div class="scanlines"></div>
+    <div class="noise"></div>
+
+    <div class="app-container">
+
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="side-heading"><i class="fa-solid fa-microchip"></i> INPUT TERMINAL</div>
+
+            <details>
+                <summary><i class="fa-solid fa-network-wired"></i> Neural Engine Data</summary>
+                <div>
+                    Model: XGB-Boost v2.4 (trained on 1.7M nodes)<br><br>
+                    Pattern recognition established. System ready.
+                    <img src="/static/feature_importance.png" alt="Intelligence Plot">
+                </div>
+            </details>
+
+            <div class="input-group">
+                <label for="source"><i class="fa-solid fa-satellite-dish"></i> Source Node</label>
+                <input type="text" id="source" class="term-input" value="Porto Airport" spellcheck="false"
+                    autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label for="dest"><i class="fa-solid fa-location-crosshairs"></i> Target Node</label>
+                <input type="text" id="dest" class="term-input" value="Porto Cathedral" spellcheck="false"
+                    autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label for="day"><i class="fa-regular fa-clock"></i> Temporal Offset</label>
+                <select id="day" class="term-input"></select>
+            </div>
+
+            <button id="go-button" class="cyber-btn">
+                <i class="fa-solid fa-bolt"></i> EXECUTE
+            </button>
+            <div id="loading">... SYNCING NEURAL DATA ...</div>
+
+            <div class="term-logs">
+                <div class="log-header"><i class="fa-solid fa-terminal"></i> SYSTEM.LOG</div>
+                <div id="term-log-content"></div>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+
+            <div class="header-section">
+                <div>
+                    <h1 class="glitch-wrapper" data-text="SMARTROUTE TERMINAL">SMARTROUTE TERMINAL</h1>
+                    <div class="sys-subtitle"><i class="fa-solid fa-circle-nodes"></i> Advanced Travel Intelligence
+                        System</div>
+                </div>
+                <div id="audio-toggle" class="fa-solid fa-volume-high" title="Toggle UI Sounds"></div>
+            </div>
+
+            <div class="status-container">
+                <div id="sys-status" class="status-box cyber-panel s-online">
+                    <div class="status-indicator"></div>
+                    <div class="status-text" id="status-text">SYS.IDLE / READY</div>
+                </div>
+                <div class="data-card cyber-panel">
+                    <div class="data-header"><i class="fa-solid fa-gauge-high"></i> Min Duration</div>
+                    <div class="data-value" id="min-time-val">--</div>
+                </div>
+                <div class="data-card cyber-panel purple">
+                    <div class="data-header"><i class="fa-solid fa-stopwatch"></i> Max Duration</div>
+                    <div class="data-value" id="max-time-val"
+                        style="color:var(--neon-purple); text-shadow: 0 0 15px rgba(157,0,255,0.4);">--</div>
+                </div>
+                <div class="data-card cyber-panel" style="border-color:#ff003c;">
+                    <div class="data-header" style="color:#ff003c;"><i class="fa-brands fa-google"></i> Google Peak ETA (08:00)</div>
+                    <div class="data-value" id="google-eta-val" style="color:#ff003c; text-shadow: 0 0 15px rgba(255,0,60,0.4);">--</div>
+                </div>
+            </div>
+
+            <div class="mid-grid">
+                <div class="map-wrapper cyber-panel">
+                    <div class="map-overlay-label"><i class="fa-solid fa-satellite"></i> Live Satellite Feed</div>
+                    <div id="map"></div>
+                </div>
+                <div class="chart-wrapper cyber-panel">
+                    <div class="section-header"><i class="fa-solid fa-chart-area"></i> Prediction Matrix</div>
+                    <div id="chart-container">
+                        <canvas id="traffic-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-wrapper cyber-panel">
+                <div class="section-header"><i class="fa-solid fa-list-ol"></i> Temporal Itinerary array</div>
+                <table id="plan-table">
+                    <thead>
+                        <tr>
+                            <th>Departure</th>
+                            <th>AI Duration</th>
+                            <th>Arrival</th>
+                            <th>Avg Speed (km/h)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan-table-body">
+                        <tr>
+                            <td colspan="4"
+                                style="text-align:center; padding: 40px; color: var(--text-dim); text-transform: uppercase;">
+                                Awaiting user execution parameters...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // --- 1. UI AUDIO SYSTEM ---
+        let audioCtx;
+        let soundEnabled = true;
+
+        document.getElementById('audio-toggle').addEventListener('click', function () {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                this.classList.remove('fa-volume-xmark', 'muted');
+                this.classList.add('fa-volume-high');
+                playSound('success');
+            } else {
+                this.classList.remove('fa-volume-high');
+                this.classList.add('fa-volume-xmark', 'muted');
+            }
+        });
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'tick') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(1000, now);
+                osc.frequency.exponentialRampToValueAtTime(10, now + 0.05);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                osc.start(now); osc.stop(now + 0.05);
+            } else if (type === 'type') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(120 + Math.random() * 80, now);
+                gain.gain.setValueAtTime(0.015, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+                osc.start(now); osc.stop(now + 0.03);
+            } else if (type === 'success') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, now); osc.frequency.setValueAtTime(900, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'error') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
+            }
+        }
+
+        // Input sound bindings
+        document.querySelectorAll('input, select, summary').forEach(el => {
+            el.addEventListener('focus', () => playSound('tick'));
+            el.addEventListener('click', () => playSound('tick'));
+            el.addEventListener('keydown', (e) => {
+                if (!['Shift', 'Control', 'Alt', 'Meta', 'Tab'].includes(e.key)) playSound('type');
+            });
+        });
+
+        // --- 2. TERMINAL LOG SYSTEM ---
+        const termLog = document.getElementById('term-log-content');
+        function addLog(msg, type = 'info', animate = true) {
+            const wrap = document.createElement('div');
+            wrap.className = 'log-line';
+            const span = document.createElement('span');
+            span.className = `log-${type}`;
+            wrap.appendChild(span);
+            termLog.appendChild(wrap);
+
+            if (!animate) {
+                span.innerHTML = msg;
+                termLog.scrollTop = termLog.scrollHeight;
+                return;
+            }
+
+            let i = 0;
+            const cursor = document.createElement('span');
+            cursor.className = 'log-cursor';
+            wrap.appendChild(cursor);
+
+            function typeChar() {
+                if (i < msg.length) {
+                    if (msg.charAt(i) === '<') {
+                        let tag = '';
+                        while (msg.charAt(i) !== '>' && i < msg.length) { tag += msg.charAt(i); i++; }
+                        tag += '>'; span.innerHTML += tag;
+                    } else {
+                        span.innerHTML += msg.charAt(i); i++;
+                        if (i % 3 === 0) playSound('type');
+                    }
+                    termLog.scrollTop = termLog.scrollHeight;
+                    setTimeout(typeChar, 10 + Math.random() * 25);
+                } else {
+                    cursor.remove();
+                }
+            }
+            typeChar();
+        }
+
+        // Initial Boot Logs
+        setTimeout(() => addLog('BOOT_SEQ: Loading CartoDB neural networks...', 'info', true), 500);
+        setTimeout(() => addLog('OK: Connections established.', 'success', true), 1500);
+        setTimeout(() => addLog('Awaiting execution routine.', 'warn', true), 2200);
+
+        // --- 3. BACKGROUND ANIMATIONS (MATRIX & PARTICLES) ---
+        const mCanvas = document.getElementById('matrix-canvas');
+        const mCtx = mCanvas.getContext('2d');
+        const pCanvas = document.getElementById('particle-canvas');
+        const pCtx = pCanvas.getContext('2d');
+
+        function resizeCanvas() {
+            mCanvas.width = pCanvas.width = window.innerWidth;
+            mCanvas.height = pCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+        // Matrix Setup
+        const chars = '01ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&*'.split('');
+        const fontSize = 14;
+        let drops = [];
+        function initMatrix() {
+            let cols = mCanvas.width / fontSize;
+            drops = [];
+            for (let x = 0; x < cols; x++) drops[x] = Math.random() * -50;
+        }
+        initMatrix();
+
+        function drawMatrix() {
+            mCtx.fillStyle = 'rgba(5, 5, 5, 0.08)';
+            mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
+            mCtx.fillStyle = '#00ff9f'; mCtx.font = fontSize + 'px "Share Tech Mono"';
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+                mCtx.fillText(text, i * fontSize, drops[i] * fontSize);
+                if (drops[i] * fontSize > mCanvas.height && Math.random() > 0.98) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+        setInterval(drawMatrix, 40);
+
+        // Particles Setup
+        const particles = [];
+        for (let i = 0; i < 80; i++) {
+            particles.push({
+                x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight,
+                r: Math.random() * 1.5 + 0.5, dx: (Math.random() - 0.5) * 0.3, dy: (Math.random() - 0.5) * 0.3
+            });
+        }
+        function drawParticles() {
+            pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+            pCtx.fillStyle = '#00eaff'; pCtx.shadowBlur = 10; pCtx.shadowColor = '#00eaff';
+            particles.forEach(p => {
+                p.x += p.dx; p.y += p.dy;
+                if (p.x < 0 || p.x > pCanvas.width) p.dx *= -1;
+                if (p.y < 0 || p.y > pCanvas.height) p.dy *= -1;
+                pCtx.beginPath(); pCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2); pCtx.fill();
+            });
+            requestAnimationFrame(drawParticles);
+        }
+        drawParticles();
+
+        // --- 4. CORE LOGIC (Map, Chart, Fetching) ---
+        const map = L.map('map', { zoomControl: false }).setView([41.1579, -8.6291], 13);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd', maxZoom: 20
+        }).addTo(map);
+
+        let routeLayer = L.layerGroup().addTo(map);
+        const tableBody = document.getElementById('plan-table-body');
+        const minTimeVal = document.getElementById('min-time-val');
+        const maxTimeVal = document.getElementById('max-time-val');
+        const sysStatus = document.getElementById('sys-status');
+        const statusText = document.getElementById('status-text');
+
+        let myChart;
+
+        function getRowClass(speed) {
+            if (speed < 15) return 'plan-row-high'; // Red (slow traffic)
+            if (speed < 30) return 'plan-row-medium'; // Yellow (moderate)
+            return 'plan-row-low'; // Green (fast)
+        }
+
+        async function generatePlan() {
+            playSound('tick');
+            const source = document.getElementById('source').value;
+            const dest = document.getElementById('dest').value;
+            const dayText = document.getElementById('day').options[document.getElementById('day').selectedIndex].text;
+
+            addLog(`>> INIT_ROUTING_PROTOCAL`, 'info');
+            addLog(`SRC: [${source}] | TGT: [${dest}] | T-OFFSET: [${dayText}]`, 'warn');
+
+            document.getElementById('loading').style.display = 'block';
+            routeLayer.clearLayers();
+            tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> QUERYING NEURAL DB...</td></tr>';
+
+            if (myChart) { myChart.destroy(); }
+
+            minTimeVal.innerText = '--'; maxTimeVal.innerText = '--';
+            sysStatus.className = 'status-box cyber-panel s-proc';
+            statusText.innerText = 'SYS: EXECUTING';
+
+            try {
+                const day = document.getElementById('day').value;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
+                const response = await fetch('/plan_trip', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source, destination: dest, day: day }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) { throw new Error(`ERR_CODE: ${response.status}`); }
+                const data = await response.json();
+
+                addLog('Data packet received. Analysing coordinates...', 'info');
+
+                if (data.route_path && data.route_path.length > 0) {
+                    const routeLine = L.polyline(data.route_path, { color: '#00eaff', weight: 4, opacity: 0.8, className: 'glowing-line' }).addTo(routeLayer);
+                    map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+                }
+
+                let tableHTML = "";
+                let minTime = Infinity, maxTime = -Infinity;
+                let minSpeed = Infinity;
+
+                let chartLabels = [], chartData_TravelTime = [], chartData_Congestion = [];
+                let validTimes = data.plan.filter(row => row.travel_time_min !== -1);
+
+                if (validTimes.length > 0) {
+                    validTimes.forEach(row => {
+                        if (row.travel_time_min < minTime) minTime = row.travel_time_min;
+                        if (row.travel_time_min > maxTime) maxTime = row.travel_time_min;
+                        if (row.congestion_score < minSpeed) minSpeed = row.congestion_score;
+
+                        const rowClass = getRowClass(row.congestion_score);
+                        tableHTML += `<tr class="${rowClass}"><td><b>${row.departure_time}</b></td><td>${row.travel_time_min}M</td><td>${row.arrival_time}</td><td>${row.congestion_score}</td></tr>`;
+
+                        chartLabels.push(row.departure_time);
+                        chartData_TravelTime.push(row.travel_time_min);
+                        chartData_Congestion.push(row.congestion_score);
+                    });
+
+                    tableBody.innerHTML = tableHTML;
+                    minTimeVal.innerText = `${minTime}M`; maxTimeVal.innerText = `${maxTime}M`;
+                    
+                    // Populate Google Peak ETA badge
+                    const googleEtaEl = document.getElementById('google-eta-val');
+                    if (googleEtaEl) {
+                        googleEtaEl.innerText = data.google_peak_eta !== undefined ? `${data.google_peak_eta}M` : 'N/A';
+                    }
+
+                    if (minSpeed < 15) {
+                        sysStatus.className = 'status-box cyber-panel s-heavy';
+                        statusText.innerText = 'SYS: HEAVY TRAFFIC DETECTED';
+                        addLog('WARNING: Low speed network congestion in designated sectors.', 'err');
+                        playSound('error');
+                    } else if (minSpeed < 30) {
+                        sysStatus.className = 'status-box cyber-panel s-online';
+                        statusText.innerText = 'SYS: MODERATE RESISTANCE';
+                        addLog('Analysis Complete: Optimal path located. Moderate resistance.', 'success');
+                        playSound('success');
+                    } else {
+                        sysStatus.className = 'status-box cyber-panel s-online';
+                        statusText.innerText = 'SYS: OPTIMAL VECTOR';
+                        addLog('Analysis Complete: Optimal path located. Vector clear.', 'success');
+                        playSound('success');
+                    }
+
+                    drawChart(chartLabels, chartData_TravelTime, chartData_Congestion);
+
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--neon-red);">DATA FRAGMENTATION EXPERIENCED</td></tr>';
+                    sysStatus.className = 'status-box cyber-panel s-heavy'; statusText.innerText = 'SYS: DATA EXP';
+                    addLog('FAILURE: Unable to reconstruct valid temporal pathways.', 'err');
+                    playSound('error');
+                }
+            } catch (err) {
+                console.error("Sys Error:", err);
+                const message = err.name === 'AbortError' ? 'REQUEST_TIMEOUT: route service took too long' : err.message;
+                tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--neon-red);">FATAL SYSTEM ERROR</td></tr>';
+                sysStatus.className = 'status-box cyber-panel s-heavy'; statusText.innerText = 'SYS: FATAL ERR';
+                addLog(`CRITICAL NETWORK FAILURE: ${message}`, 'err');
+                playSound('error');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Setup Chart
+        Chart.defaults.color = '#5c8b99';
+        Chart.defaults.font.family = "'Share Tech Mono', monospace";
+
+        function drawChart(labels, travelData, congestionData) {
+            const ctx = document.getElementById('traffic-chart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Duration (m)',
+                            data: travelData,
+                            backgroundColor: 'rgba(0, 234, 255, 0.2)',
+                            borderColor: '#00eaff',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Avg Speed (km/h)',
+                            data: congestionData,
+                            type: 'line',
+                            borderColor: '#ff003c',
+                            backgroundColor: '#ff003c',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#000',
+                            pointBorderColor: '#ff003c',
+                            pointHoverBackgroundColor: '#fff',
+                            tension: 0,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { grid: { color: 'rgba(92, 139, 153, 0.1)' }, ticks: { color: '#00eaff' } },
+                        y: {
+                            type: 'linear', position: 'left',
+                            grid: { color: 'rgba(92, 139, 153, 0.1)' }, ticks: { color: '#00eaff' }
+                        },
+                        y1: {
+                            type: 'linear', position: 'right', grid: { drawOnChartArea: false },
+                            ticks: { color: '#ff003c' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#e0f8ff', font: { family: "'Orbitron'", size: 10 } } },
+                        tooltip: {
+                            backgroundColor: 'rgba(10, 15, 20, 0.9)', titleColor: '#00eaff',
+                            bodyColor: '#e0f8ff', borderColor: '#00eaff', borderWidth: 1, titleFont: { family: "'Orbitron'" }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('go-button').addEventListener('click', generatePlan);
+
+        // Populate days
+        const now = new Date();
+        const daySelect = document.getElementById('day');
+        const days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+        days.forEach((day, index) => {
+            daySelect.options[daySelect.options.length] = new Option(`[0${index + 1}] ${day}`, index);
+        });
+        daySelect.value = now.getDay() === 0 ? 6 : now.getDay() - 1;
+
+        // Custom Leaflet CSS overrides
+        const style = document.createElement('style');
+        style.innerHTML = `
+            .leaflet-container { background: #000 !important; }
+            .glowing-line { filter: drop-shadow(0 0 8px #00eaff); }
+            .leaflet-control-zoom a { background: #000 !important; color: #00eaff !important; border-color: #00eaff !important; }
+            .leaflet-control-zoom a:hover { background: #00eaff !important; color: #000 !important; }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+
+</html>

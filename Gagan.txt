@@ -1,0 +1,14 @@
+for the cheking the Overfitting : 
+- we have used the MAE , and RMSE basically their differnce on the train and test set 
+- if the differnce is less then 5% then we can say that the model is not overfitting 
+- we have used the R2 score differnce to check the overfitting of the 
+ model like if their difference is More the 15% then we can say that the model is overfitting .
+
+ For the Preventign the Overfitting of the Model : 
+ - we have used the Regularization Techniques
+ - LIKE here in this project we have used the 
+  - max_depth = 8
+  - min_child_weight = 20
+  - subsample = 0.8
+  - early_stopping_rounds = 15
+  
