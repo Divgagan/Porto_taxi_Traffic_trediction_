@@ -1,0 +1,53 @@
+# Large Data Files (not needed in repo, > 10MB)
+train.csv
+*.csv.gz
+
+# Zip files
+*.zip
+research_figures_hd.zip
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Logs
+*.log
+flask_server.*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (optional - comment out if you want to include these)
+# *.pkl
+
+# Environment variables
+.env
+.env.local
+
+# Miscellaneous
+*.pptx
+*.pdf
+*.txt
+!requirements.txt
